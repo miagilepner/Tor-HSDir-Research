@@ -37,7 +37,7 @@ def getDirs(digest, hsdirs_sorted, hsdirs_keys):
 #outputs all details for these HSDirs
 def analyzeHSDirs(filename, digest_one, digest_two):
   dirlist = []
-  descriptors = parse_file('old_consensus/%s' % filename) 
+  descriptors = parse_file('../old_consensus/%s' % filename) 
   hsdirs = filter(lambda descriptor:Flag.HSDIR in descriptor.flags, descriptors)
   hsdirs_sorted = sorted(hsdirs, key=lambda descriptor:binascii.unhexlify(descriptor.digest),reverse=True)
   hsdirs_keys = [binascii.unhexlify(descriptor).digest for descriptor in hsdirs_sorted]
