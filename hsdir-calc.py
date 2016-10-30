@@ -33,6 +33,7 @@ def getDirs(digest, hsdirs_sorted, hsdirs_keys):
       dirlist.append(hsdirs_sorted[1])
   return dirlist 
 
+#for filename
 #finds 3 HSDirs for digest_one and 3 for digest_two
 #outputs all details for these HSDirs
 def analyzeHSDirs(filename, digest_one, digest_two):
