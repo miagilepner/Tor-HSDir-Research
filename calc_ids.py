@@ -51,35 +51,42 @@ def rend_get_descriptor_id_bytes(service_id, secret_id_part):
   descriptor_id.update(secret_id_part)
   return descriptor_id.digest()
 
+def epoch_convert(timeval):
+  epoch = datetime.datetime(1970,1,1)
+  return (timeval-epoch).total_seconds()
+
 # Return the time of day when the desc_id changes for this service
-def time_desc_changes(service_id, time = int(time())):
+def time_desc_changes(service_id, timedate = datetime.datetime(2016,11,1)):
+  time = epoch_convert(timedate) 
   orig_time_period = get_time_period(time, 0, service_id, False)
   while (get_time_period(time, 0, service_id, False) == orig_time_period):
     time += 1
   # time_period has now changed. return the time of day.
   return time
 
-def findDigests(onion_address, days=None, past=False):
+# Returns a list of (datetime, (desc_id1, desc_id2))
+# months = 1 returns the list for October 2016
+# months > 1 returns the list for months counting back from 10/16 
+def findDigests(onion_address, months):
   REPLICAS=2
-  digests = [] 
+  digests = []
+  if months == 0:
+    return None
+  monthCount = 0
+  currentMonth = 10 
   service_id, tld = onion_address.split(".")
-  if tld == 'onion' and len(service_id) == 16 and service_id.isalnum():   
+  if tld == 'onion' and len(service_id) == 16 and service_id.isalnum():
     time_desc_updates = datetime.datetime.fromtimestamp(time_desc_changes(service_id)) - datetime.timedelta(days = 1)
-    if days: # Calculate desc_id's for future dates
-      for day in range(0, days):
-        desc_ids = compute_desc_ids(service_id, REPLICAS, calendar.timegm(time_desc_updates.timetuple()))
-        digests.append((time_desc_updates,desc_ids))
-        if past==True:
-          time_desc_updates = time_desc_updates - datetime.timedelta(days = 1)
-        else:
-          time_desc_updates = time_desc_updates + datetime.timedelta(days = 1)
-    else: # Output the current desc_id's for the specified hidden service
+    while monthCount < months:
       desc_ids = compute_desc_ids(service_id, REPLICAS, calendar.timegm(time_desc_updates.timetuple()))
       digests.append((time_desc_updates, desc_ids))
-    return digests
+      time_desc_updates = time_desc_updates - datetime.timedelta(days=1) 
+      if time_desc_updates.month != currentMonth:
+        currentMonth = time_desc_updates.month
+        monthCount+=1
   else:
-    raise Exception("[!] The onion address you provided is not valid")
-
+    raise Exception("The onion address you provided is not valid")
+  return digests
 
 def main():
     REPLICAS = 2
