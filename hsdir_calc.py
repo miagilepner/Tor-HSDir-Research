@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 from stem.descriptor import DocumentHandler
+from stem.descriptor import parse_file
 from stem.descriptor.reader import DescriptorReader
 from stem import Flag
 import os
@@ -7,12 +8,13 @@ import binascii
 import bisect 
 import calc_ids
 import datetime, calendar
+import tarfile
 
 #returns a list of the 3 hsdirs closest to but larger than digest
 def getDirs(digest, hsdirs_sorted, hsdirs_keys):
   dirlist = []
   hsdir_size = len(hsdirs_sorted)
-  i=bisect_left(hsdirs_keys, digest)
+  i=bisect.bisect_left(hsdirs_keys, digest)
   if i!=hsdir_size:
     if i+2 < hsdir_size:
       dirlist.append(hsdirs_sorted[i])
@@ -27,7 +29,7 @@ def getDirs(digest, hsdirs_sorted, hsdirs_keys):
       dirlist.append(hsdirs_sorted[0])
       dirlist.append(hsdirs_sorted[1])
   else:
-    if digest_one > hsdirs_keys[hsdir_size-1]:
+    if digest_one >= hsdirs_keys[hsdir_size-1]:
       dirlist.append(hsdirs_sorted[0])
       dirlist.append(hsdirs_sorted[1])
       dirlist.append(hsdirs_sorted[2])
@@ -40,16 +42,19 @@ def getDirs(digest, hsdirs_sorted, hsdirs_keys):
 #analyzes HSDirs for a month at a time 
 #finds 3 HSDirs for digest_one and 3 for digest_two
 #outputs all details for these HSDirs
-def analyzeHSDirs(fileList, digests):
-  dirlist = []
-  descriptors = DescriptorReader("../old_consensus/%s" % filename, document_handler=DocumentHandler.DOCUMENT)
-  #descriptors = parse_file('../old_consensus/%s' % filename) 
-  hsdirs = filter(lambda descriptor:Flag.HSDIR in descriptor.flags, descriptors)
+def analyzeHSDirs(entry, digest):
+  digests = digest[1]
+  digest_one = digests[0]
+  digest_two = digests[1]
+  cons = next(parse_file(entry, document_handler=DocumentHandler.DOCUMENT))
+  descriptors = cons.routers.items()
+  hsdirs = [desc[1] for desc in descriptors if Flag.HSDIR in desc[1].flags]
   hsdirs_sorted = sorted(hsdirs, key=lambda descriptor:binascii.unhexlify(descriptor.digest),reverse=True)
-  hsdirs_keys = [binascii.unhexlify(descriptor).digest for descriptor in hsdirs_sorted]
-  onelist = getDirs(digest_one, hsdirs_sorted, hsdirs_keys)
-  twolist = getDirs(digest_two, hsdirs_sorted, hsdirs_keys)
+  hsdirs_keys = [binascii.unhexlify(descriptor.digest) for descriptor in hsdirs_sorted]
+  onelist = getDirs(digest_one, hsdirs, hsdirs_keys)
+  twolist = getDirs(digest_two, hsdirs, hsdirs_keys)
   dirlist = onelist+twolist
+  print(dirlist)
   return dirlist
 
 def createJSON(dirlist):
@@ -71,19 +76,28 @@ def createJSON(dirlist):
     json_data[i] = item_dict
   return json_data
 
-#digests should be calculated for a specific number of months
+#gets digests and calls analyzeHSDirs
 def run(onion_address):
   months = 1 
   digestList = calc_ids.findDigests(onion_address, months)
-  fileList = []
   for dig in digestList:
+    newdate = dig[0]
+    if dig[0].hour == 23:
+      newdate = dig[0] + datetime.timedelta(hours=1)
     monthNum = ""
-    monthNum = str(dig[0].month)
-    if dig[0].month < 10:
+    monthNum = str(newdate.month)
+    if newdate.month < 10:
       monthNum = "0%s" % monthNum
-    fileName = "consenuses-%d-%s.tar.xz" % (dig[0].year, monthNum)
-    if fileName not in fileList:
-      fileList.append(fileName) 
-  analyzeHSDirs(fileList, digestList) 
-
+    hr = newdate.hour
+    dayNum = str(newdate.day)
+    if newdate.day < 10:
+      dayNum = "0%s" % dayNum
+    tarName = "/home/mge/old_consensus/consensuses-%d-%s.tar.xz" % (newdate.year, monthNum)
+    tarFileName = "consensuses-%d-%s/%s/%d-%s-%s-%d-00-00-consensus" % (newdate.year, monthNum, dayNum, newdate.year, monthNum, dayNum, hr) 
+    with tarfile.open(tarName, mode='r:xz') as tf:
+      f = tf.extractfile(tf.getmember(tarFileName))
+      analyzeHSDirs(f, dig)
+      f.close()
+      tf.members = []
+      return 
 run("3g2upl4pq6kufc4m.onion")
