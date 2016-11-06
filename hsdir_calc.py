@@ -110,14 +110,16 @@ def run(onion_address):
     monthNum = str(newdate.month)
     if newdate.month < 10:
       monthNum = "0%s" % monthNum
-    hr = newdate.hour
+    hrNum = str(newdate.hour)
+    if newdate.hour<10:
+      hrNum = "0%s" % hrNum
     dayNum = str(newdate.day)
     if newdate.day < 10:
       dayNum = "0%s" % dayNum
     if os.path.exists("/home/mge/%s/%d-%s-%s.json" % (onion_address, newdate.year, monthNum, dayNum)):
       continue
     tarName = "/home/mge/old_consensus/consensuses-%d-%s.tar.xz" % (newdate.year, monthNum)
-    tarFileName = "consensuses-%d-%s/%s/%d-%s-%s-%d-00-00-consensus" % (newdate.year, monthNum, dayNum, newdate.year, monthNum, dayNum, hr) 
+    tarFileName = "consensuses-%d-%s/%s/%d-%s-%s-%s-00-00-consensus" % (newdate.year, monthNum, dayNum, newdate.year, monthNum, dayNum, hrNum) 
     with tarfile.open(tarName, mode='r:xz') as tf:
       f = tf.extractfile(tf.getmember(tarFileName))
       data = analyzeHSDirs(f, dig)
@@ -126,3 +128,8 @@ def run(onion_address):
       f.close()
       tf.members = []
 run("3g2upl4pq6kufc4m.onion")
+run("xmh57jrzrnw6insl.onion")
+run("shopsat2dotfotbs.onion")
+run("bj6sy3n7tbt3ot2f.onion")
+run("abbujjh5vqtq77wg.onion")
+run("2ogmrlfzdthnwkez.onion")
