@@ -4,6 +4,7 @@ from stem.descriptor import parse_file
 from stem.descriptor.reader import DescriptorReader
 from stem import Flag
 import os
+import base64
 import binascii 
 import bisect 
 import calc_ids
@@ -14,29 +15,39 @@ import tarfile
 def getDirs(digest, hsdirs_sorted, hsdirs_keys):
   dirlist = []
   hsdir_size = len(hsdirs_sorted)
-  i=bisect.bisect_left(hsdirs_keys, digest)
+  i=bisect.bisect_left(hsdirs_keys, base64.b32decode(digest,1))
   if i!=hsdir_size:
-    if i+2 < hsdir_size:
+    if i+3 < hsdir_size:
       dirlist.append(hsdirs_sorted[i])
       dirlist.append(hsdirs_sorted[i+1])
       dirlist.append(hsdirs_sorted[i+2])
+      dirlist.append(hsdirs_sorted[i+3])
+    elif i+2 < hsdir_size:
+      dirlist.append(hsdirs_sorted[i])
+      dirlist.append(hsdirs_sorted[i+1])
+      dirlist.append(hsdirs_sorted[i+2])
+      dirlist.append(hsdirs_sorted[0])
     elif i+1 < hsdir_size:
       dirlist.append(hsdirs_sorted[i])
       dirlist.append(hsdirs_sorted[i+1])
       dirlist.append(hsdirs_sorted[0])
+      dirlist.append(hsdirs_sorted[1])
     elif i<hsdir_size:
       dirlist.append(hsdirs_sorted[i])
       dirlist.append(hsdirs_sorted[0])
       dirlist.append(hsdirs_sorted[1])
+      dirlist.append(hsdirs_sorted[2])
   else:
-    if digest_one >= hsdirs_keys[hsdir_size-1]:
+    if digest >= hsdirs_keys[hsdir_size-1]:
       dirlist.append(hsdirs_sorted[0])
       dirlist.append(hsdirs_sorted[1])
       dirlist.append(hsdirs_sorted[2])
-    elif digest_one == hsdirs_keys[hsdir_size-1]:
+      dirlist.append(hsdirs_sorted[3])
+    elif digest == hsdirs_keys[hsdir_size-1]:
       dirlist.append(hsdirs_sorted[hsdir_size-1])
       dirlist.append(hsdirs_sorted[0])
       dirlist.append(hsdirs_sorted[1])
+      dirlist.append(hsdirs_sorted[2])
   return dirlist 
 
 #analyzes HSDirs for a month at a time 
@@ -49,12 +60,11 @@ def analyzeHSDirs(entry, digest):
   cons = next(parse_file(entry, document_handler=DocumentHandler.DOCUMENT))
   descriptors = cons.routers.items()
   hsdirs = [desc[1] for desc in descriptors if Flag.HSDIR in desc[1].flags]
-  hsdirs_sorted = sorted(hsdirs, key=lambda descriptor:binascii.unhexlify(descriptor.digest),reverse=True)
-  hsdirs_keys = [binascii.unhexlify(descriptor.digest) for descriptor in hsdirs_sorted]
-  onelist = getDirs(digest_one, hsdirs, hsdirs_keys)
-  twolist = getDirs(digest_two, hsdirs, hsdirs_keys)
+  hsdirs_sorted = sorted(hsdirs, key=lambda descriptor:binascii.unhexlify(descriptor.fingerprint))
+  hsdirs_keys = [binascii.unhexlify(descriptor.fingerprint) for descriptor in hsdirs_sorted]
+  onelist = getDirs(digest_one, hsdirs_sorted, hsdirs_keys)
+  twolist = getDirs(digest_two, hsdirs_sorted, hsdirs_keys)
   dirlist = onelist+twolist
-  print(dirlist)
   return dirlist
 
 def createJSON(dirlist):
