@@ -10,12 +10,14 @@ import bisect
 import calc_ids
 import datetime, calendar
 import tarfile
+import json
 
 #returns a list of the 3 hsdirs closest to but larger than digest
 def getDirs(digest, hsdirs_sorted, hsdirs_keys):
   dirlist = []
   hsdir_size = len(hsdirs_sorted)
-  i=bisect.bisect_left(hsdirs_keys, base64.b32decode(digest,1))
+  decode_digest = base64.b32decode(digest,1)
+  i=bisect.bisect_left(hsdirs_keys, decode_digest)
   if i!=hsdir_size:
     if i+3 < hsdir_size:
       dirlist.append(hsdirs_sorted[i])
@@ -38,12 +40,12 @@ def getDirs(digest, hsdirs_sorted, hsdirs_keys):
       dirlist.append(hsdirs_sorted[1])
       dirlist.append(hsdirs_sorted[2])
   else:
-    if digest >= hsdirs_keys[hsdir_size-1]:
+    if decode_digest > hsdirs_keys[hsdir_size-1]:
       dirlist.append(hsdirs_sorted[0])
       dirlist.append(hsdirs_sorted[1])
       dirlist.append(hsdirs_sorted[2])
       dirlist.append(hsdirs_sorted[3])
-    elif digest == hsdirs_keys[hsdir_size-1]:
+    elif decode_digest == hsdirs_keys[hsdir_size-1]:
       dirlist.append(hsdirs_sorted[hsdir_size-1])
       dirlist.append(hsdirs_sorted[0])
       dirlist.append(hsdirs_sorted[1])
@@ -65,9 +67,9 @@ def analyzeHSDirs(entry, digest):
   onelist = getDirs(digest_one, hsdirs_sorted, hsdirs_keys)
   twolist = getDirs(digest_two, hsdirs_sorted, hsdirs_keys)
   dirlist = onelist+twolist
-  return dirlist
+  return createDict(dirlist) 
 
-def createJSON(dirlist):
+def createDict(dirlist):
   json_data = {}
   i = 0
   for item in dirlist:
@@ -83,13 +85,23 @@ def createJSON(dirlist):
     for flag in item.flags:
       item_dict['flags'].append(flag) 
     item_dict['version_line'] = item.version_line 
+    if hasattr(item, 'bandwidth'):
+      item_dict['bandwidth'] = item.bandwidth
+    if hasattr(item, 'exit_policy'):
+      item_dict['exit_policy'] = item.exit_policy._policy
+    if hasattr(item, 'measured'):
+      item_dict['measured'] = item.measured
+    if hasattr(item, 'identifier_type'):
+      item_dict['identifier_type'] = item.identifier_type 
     json_data[i] = item_dict
   return json_data
 
 #gets digests and calls analyzeHSDirs
 def run(onion_address):
-  months = 1 
+  months = 12 
   digestList = calc_ids.findDigests(onion_address, months)
+  if not os.path.exists("/home/mge/%s" % onion_address):
+    os.mkdir("/home/mge/%s" % onion_address)
   for dig in digestList:
     newdate = dig[0]
     if dig[0].hour == 23:
@@ -102,12 +114,15 @@ def run(onion_address):
     dayNum = str(newdate.day)
     if newdate.day < 10:
       dayNum = "0%s" % dayNum
+    if os.path.exists("/home/mge/%s/%d-%s-%s.json" % (onion_address, newdate.year, monthNum, dayNum)):
+      continue
     tarName = "/home/mge/old_consensus/consensuses-%d-%s.tar.xz" % (newdate.year, monthNum)
     tarFileName = "consensuses-%d-%s/%s/%d-%s-%s-%d-00-00-consensus" % (newdate.year, monthNum, dayNum, newdate.year, monthNum, dayNum, hr) 
     with tarfile.open(tarName, mode='r:xz') as tf:
       f = tf.extractfile(tf.getmember(tarFileName))
-      analyzeHSDirs(f, dig)
+      data = analyzeHSDirs(f, dig)
+      output = open("/home/mge/%s/%d-%s-%s.json" % (onion_address, newdate.year, monthNum, dayNum), 'w') 
+      json.dump(data, output)
       f.close()
       tf.members = []
-      return 
 run("3g2upl4pq6kufc4m.onion")
