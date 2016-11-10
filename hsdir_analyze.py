@@ -1,6 +1,7 @@
 import calc_ids
 import json
 import socket 
+from collections import Counter
 import make_hashring
 import calc_ids
 import statistics
@@ -44,9 +45,44 @@ def findDigestDistance(onion, suffix, hsdirs):
   close(hash_json)
   return z_ones, z_fours
 
-def findReverseDNS():
-
-def findSimilarTraits():
+def findReverseDNS(onion, suffix, hsdirs):
+  domains = []
+  for i,hsdir in hsdirs:
+    if i == 4 or i == 8:
+      continue
+    domain = socket.gethostbyaddr(hsdir['address'])[0] 
+    parts = domain.split(".")[-2:]
+    domains.append(parts.join("."))
+  c = Counter(domains)
+  return c.most_common() 
+ 
+def findSimilarTraits(onion, suffix, hsdirs):
+  #test for nicknames that are the same
+  nicknames = []
+  
+  #test for ports that are the same 
+  or_ports = []
+  dir_ports = []
+  
+  #test for variance of bandwidth
+  bandwidths = []
+  
+  #test for same policies
+  exits = [] 
+  for i,hsdir in hsdirs:
+    if i == 4 or i == 8:
+      continue
+    nicknames.append(hsdir['nickname'])
+    or_ports.append(hsdir['or_port'])
+    dir_ports.append(hsdir['dir_port'])
+    if 'bandwidth' in hsdir:
+      bandwidths.append(hsdir['bandwidth'])
+    if 'exit_policy' in hsdir:
+      exits.append(hsdir['exit_policy'])
+  common_nicks = Counter(nicknames).most_common()
+  common_or = Counter(or_ports).most_common()
+  common_dir = Counter(dir_ports).most_common()
+  common_exits = Counter(exits).most_common()
 
 def findAge():
 
