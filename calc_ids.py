@@ -64,6 +64,18 @@ def time_desc_changes(service_id, timedate = datetime.datetime(2016,11,1)):
   # time_period has now changed. return the time of day.
   return time
 
+def digestsByDate(onion_address, suffix):
+  REPLICAS=2
+  digests = []
+  service_id, tld = onion_address.split(".")
+  if tld == 'onion' and len(service_id) == 16 and service_id.isalnum():
+    time_desc_updates = datetime.datetime.fromtimestamp(time_desc_changes(service_id)) - datetime.timedelta(days = 1)
+    desc_ids = compute_desc_ids(service_id, REPLICAS, calendar.timegm(time_desc_updates.timetuple()))
+    digests.append((time_desc_updates, desc_ids))
+  else:
+    raise Exception("The onion address you provided is not valid")
+  return digests
+ 
 # Returns a list of (datetime, (desc_id1, desc_id2))
 # months = 1 returns the list for October 2016
 # months > 1 returns the list for months counting back from 10/16 
