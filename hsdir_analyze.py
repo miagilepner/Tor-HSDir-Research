@@ -56,7 +56,7 @@ def findReverseDNS(onion, suffix, hsdirs):
   c = Counter(domains)
   return c.most_common() 
  
-def findSimilarTraits(onion, suffix, hsdirs):
+def findSimilarTraits(hsdirs):
   #test for nicknames that are the same
   nicknames = []
   
@@ -79,12 +79,14 @@ def findSimilarTraits(onion, suffix, hsdirs):
       bandwidths.append(hsdir['bandwidth'])
     if 'exit_policy' in hsdir:
       exits.append(hsdir['exit_policy'])
-  common_nicks = Counter(nicknames).most_common()
+  common_nick = Counter(nicknames).most_common()
   common_or = Counter(or_ports).most_common()
   common_dir = Counter(dir_ports).most_common()
   common_exits = Counter(exits).most_common()
+  var_band = variance(bandwidths)
+  return common_nick, common_or, common_dir, common_exits, var_band
 
-def findAge():
+def findAge(suffix, hsdirs):
 
 def run():
   make_hashring.openFiles()
