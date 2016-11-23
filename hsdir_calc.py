@@ -19,10 +19,10 @@ def getDirs(digest, hsdirs_sorted, hsdirs_keys):
   hsdir_size = len(hsdirs_sorted)
   for i in range(hsdir_size):
     if i==hsdir_size-1 and hsdirs_keys[i] < decode_digest:
-      dirlist.extend(hsdirs_sorted[0], hsdirs_sorted[1], hsdirs_sorted[2], hsdirs_sorted[3])
+      dirlist.extend([hsdirs_sorted[0], hsdirs_sorted[1], hsdirs_sorted[2], hsdirs_sorted[3]])
     else:
       if hsdirs_keys[i] >= decode_digest:
-        dirlist.extend(hsdirs_sorted[i], hsdirs_sorted[(i+1)%hsdir_size], hsdirs_sorted[(i+2)%hsdir_size], hsdirs_sorted[(i+3)%hsdir_size])
+        dirlist.extend([hsdirs_sorted[i], hsdirs_sorted[(i+1)%hsdir_size], hsdirs_sorted[(i+2)%hsdir_size], hsdirs_sorted[(i+3)%hsdir_size]])
         break
   return dirlist  
 

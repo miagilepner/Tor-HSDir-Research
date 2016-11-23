@@ -89,7 +89,6 @@ def findSimilarTraits(hsdirs):
 def findAge(suffix, hsdirs):
 
 def run():
-  make_hashring.openFiles()
   onions = open("descriptor_list.txt", "r")
   for onion in onions:
     folder = make_hashring.stripOnion(onion)
