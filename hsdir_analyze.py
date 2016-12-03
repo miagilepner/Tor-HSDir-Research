@@ -3,10 +3,11 @@ import json
 import socket 
 from collections import Counter
 import calc_ids
+import make_hashrings
 import statistics
 from datetime import timedelta
 import base64
-
+import geoip2.database
 def difference(one, two):
   if one<two:
     return two-one
@@ -68,11 +69,14 @@ def findDigestDistance(onion, suffix, digestList, hsdirs):
   hash_json.close()
   return z_ones, z_fours
 
-def findReverseDNS(onion, suffix, hsdirs):
+def findReverseDNS(onion, suffix, hsdirs, georeader):
   domains = []
+  countries = []
   for i,hsdir in hsdirs.items():
     if i == '4' or i == '8':
       continue
+    response = georeader.country(hsdir['address'])
+    countries.append(response.country.name)
     try:
       domain = socket.gethostbyaddr(hsdir['address'])[0] 
     except socket.herror:
@@ -81,7 +85,8 @@ def findReverseDNS(onion, suffix, hsdirs):
     parts = domain.split(".")[-2:]
     domains.append(".".join(parts))
   c = Counter(domains)
-  return c.most_common() 
+  d = Counter(countries)
+  return c.most_common(), d.most_common() 
  
 def findSimilarTraits(hsdirs):
   #test for nicknames that are the same
@@ -115,9 +120,10 @@ def findSimilarTraits(hsdirs):
 
 
 def run():
+  georeader = geoip2.database.Reader("../geolite/GeoLite2-Country.mmdb")
   onions = open("descriptor_list.txt", "r")
   for onion in onions:
-    folder = make_hashring.stripOnion(onion)
+    folder = make_hashrings.stripOnion(onion)
     data = os.listdir("/home/mge/%s" % folder)
     digests = calc_ids.findDigests(onion, 12) 
     for datum in data:
@@ -128,16 +134,23 @@ def run():
       day = dates[2]
       hr = dates[3]
       suffix = "%s-%s-%s-%s" % (yr, mon, day, hr)    
-      hsdirs_json = open("/home/mge/%s/%s.json" % (onion, suffix), "r")  
+      hsdirs_json = open("/home/mge/%s/%s.json" % (onion, suffix), "rw")  
       hsdirs = json.load(hsdirs_json)
       
       z_ones, z_fours = findDigestDistance(onion, suffix, digests, hsdirs)
-      dns = findReverseDNS(onion, suffix, hsdirs)
+      dns,countries = findReverseDNS(onion, suffix, hsdirs, georeader)
       common_nick, common_or, common_dir, common_exits, var_band = findSimilarTraits(hsdirs)
+      hsdirs_json.seek(0)
+      new_hsdirs = {}
+      new_hsdirs['hsdirs'] = hsdirs
+      new_hsdirs['stats'] = {'z_ones':z_ones, 'z_fours':z_fours, 'dns':dns, 'countries':countries, 'nicknames':common_nick, 'ors':common_or, 'dirs':common_dir, 'exits':common_exits, 'bandwidth_var':var_band}
+      json.dump(new_hsdirs, hsdirs_json)
       hsdirs_json.close()
   onions.close()
+  reader.close()
  
 def test():
+  georeader = geoip2.database.Reader("../geolite/GeoLite2-Country.mmdb")
   onion = "duskgytldkxiuqc6.onion"
   digests = calc_ids.findDigests(onion, 12) 
   suffix = "2016-10-14-14"
@@ -145,18 +158,12 @@ def test():
   hsdirs = json.load(hsdirs_json)
 
   z_ones, z_fours = findDigestDistance(onion, suffix, digests, hsdirs)
-  print("========== %s statistics =========" % onion)
-  print("z_ones: "+str(z_ones))
-  print("z_fours :"+str(z_fours))
- 
-  dns = findReverseDNS(onion, suffix, hsdirs)
-  print("dns: "+str(dns))
+  dns, countries = findReverseDNS(onion, suffix, hsdirs, georeader)
   common_nick, common_or, common_dir, common_exits, var_band = findSimilarTraits(hsdirs)
-  print("common_nick: "+str(common_nick))
-  print("common_or: "+str(common_or))
-  print("common_dir: "+str(common_dir))
-  print("common_exits: "+str(common_exits))
-  print("var_band: "+str(var_band))
+  new_hsdirs = {}
+  new_hsdirs['hsdirs'] = hsdirs
+  new_hsdirs['stats'] = {'z_ones':z_ones, 'z_fours':z_fours, 'dns':dns, 'countries':countries, 'nicknames':common_nick, 'ors':common_or, 'dirs':common_dir, 'exits':common_exits, 'bandwidth_var':var_band}
   hsdirs_json.close()
+  georeader.close()
 
-test() 
+run() 
