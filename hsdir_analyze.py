@@ -17,7 +17,7 @@ def difference(one, two):
 
 def transformTimestamp(newdate):
   if newdate.hour == 23:
-    newdate = newdate+datetime.timedelta(hours=1)
+    newdate = newdate+timedelta(hours=1)
   monthNum = ""
   monthNum = str(newdate.month)
   if newdate.month < 10:
