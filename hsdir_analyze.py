@@ -90,7 +90,6 @@ def findReverseDNS(onion, suffix, hsdirs, georeader):
     try:
       domain = socket.gethostbyaddr(hsdir['address'])[0] 
     except socket.herror:
-      print("FAILED: %s" % hsdir['address'])
       continue
     parts = domain.split(".")[-2:]
     domains.append(".".join(parts))
