@@ -8,6 +8,8 @@ import statistics
 from datetime import timedelta
 import base64
 import geoip2.database
+import os
+
 def difference(one, two):
   if one<two:
     return two-one
@@ -32,7 +34,12 @@ def transformTimestamp(newdate):
 #this is ugly. i'll fix it later
 def findDigestDistance(onion, suffix, digestList, hsdirs):
   hash_json = open("/home/mge/hashrings/%s.json" % suffix, "r")
-  hashring = json.load(hash_json)
+  try:
+    hashring = json.load(hash_json)
+  except Exception:
+    print("FAILED: %s %s" % (onion, suffix))
+    return 0,0
+  hash_json.close()
   diff_ones = []
   diff_fours = []
   hash_len = len(hashring)
@@ -66,7 +73,6 @@ def findDigestDistance(onion, suffix, digestList, hsdirs):
   z_fours.append((one_four-mean_four)/div_four)
   z_fours.append((two_four-mean_four)/div_four)
    
-  hash_json.close()
   return z_ones, z_fours
 
 def findReverseDNS(onion, suffix, hsdirs, georeader):
@@ -75,8 +81,12 @@ def findReverseDNS(onion, suffix, hsdirs, georeader):
   for i,hsdir in hsdirs.items():
     if i == '4' or i == '8':
       continue
-    response = georeader.country(hsdir['address'])
-    countries.append(response.country.name)
+    try:
+      response = georeader.country(hsdir['address'])
+      countries.append(response.country.name)
+    except Exception:
+      print("FAILED geoip2: %s" % hsdir['address'])
+      continue
     try:
       domain = socket.gethostbyaddr(hsdir['address'])[0] 
     except socket.herror:
@@ -122,9 +132,10 @@ def findSimilarTraits(hsdirs):
 def run():
   georeader = geoip2.database.Reader("../geolite/GeoLite2-Country.mmdb")
   onions = open("descriptor_list.txt", "r")
-  for onion in onions:
-    folder = make_hashrings.stripOnion(onion)
-    data = os.listdir("/home/mge/%s" % folder)
+  for oni in onions:
+    onion = make_hashrings.stripOnion(oni)
+    print("Beginning %s" % onion)
+    data = os.listdir("/home/mge/%s" % onion)
     digests = calc_ids.findDigests(onion, 12) 
     for datum in data:
       datum = datum.strip(".json")
@@ -134,16 +145,18 @@ def run():
       day = dates[2]
       hr = dates[3]
       suffix = "%s-%s-%s-%s" % (yr, mon, day, hr)    
-      hsdirs_json = open("/home/mge/%s/%s.json" % (onion, suffix), "rw")  
+      hsdirs_json = open("/home/mge/%s/%s.json" % (onion, suffix), "r")
       hsdirs = json.load(hsdirs_json)
-      
+      hsdirs_json.close()
+      if 'stats' in hsdirs:
+        continue 
       z_ones, z_fours = findDigestDistance(onion, suffix, digests, hsdirs)
       dns,countries = findReverseDNS(onion, suffix, hsdirs, georeader)
       common_nick, common_or, common_dir, common_exits, var_band = findSimilarTraits(hsdirs)
-      hsdirs_json.seek(0)
       new_hsdirs = {}
       new_hsdirs['hsdirs'] = hsdirs
       new_hsdirs['stats'] = {'z_ones':z_ones, 'z_fours':z_fours, 'dns':dns, 'countries':countries, 'nicknames':common_nick, 'ors':common_or, 'dirs':common_dir, 'exits':common_exits, 'bandwidth_var':var_band}
+      hsdirs_json = open("/home/mge/%s/%s.json" % (onion, suffix), "w")
       json.dump(new_hsdirs, hsdirs_json)
       hsdirs_json.close()
   onions.close()

@@ -46,4 +46,3 @@ def openFiles():
   onions.close()
   return
 
-openFiles()
