@@ -1,14 +1,16 @@
 import calc_ids
 import json
 import socket 
+import requests
 from collections import Counter
 import calc_ids
 import make_hashrings
 import statistics
-from datetime import timedelta
+from datetime import datetime
 import base64
 import geoip2.database
 import os
+import time
 
 def difference(one, two):
   if one<two:
@@ -17,7 +19,7 @@ def difference(one, two):
 
 def transformTimestamp(newdate):
   if newdate.hour == 23:
-    newdate = newdate+timedelta(hours=1)
+    newdate = newdate+datetime.timedelta(hours=1)
   monthNum = ""
   monthNum = str(newdate.month)
   if newdate.month < 10:
@@ -33,12 +35,16 @@ def transformTimestamp(newdate):
 
 #this is ugly. i'll fix it later
 def findDigestDistance(onion, suffix, digestList, hsdirs):
-  hash_json = open("/home/mge/hashrings/%s.json" % suffix, "r")
+  try:
+    hash_json = open("/home/mge/hashrings/%s.json" % suffix, "r")
+  except FileNotFoundError:
+    print("FAILED: %s %s" % (onion, suffix))
+    return -1, -1
   try:
     hashring = json.load(hash_json)
   except Exception:
     print("FAILED: %s %s" % (onion, suffix))
-    return 0,0
+    return -1,-1
   hash_json.close()
   diff_ones = []
   diff_fours = []
@@ -127,7 +133,86 @@ def findSimilarTraits(hsdirs):
   var_band = statistics.variance(bandwidths)
   return common_nick, common_or, common_dir, common_exits, var_band
 
+def getAllFingerprints():
+  onions = open("descriptor_list.txt", "r")
+  fingerprints = {}
+  for oni in onions:
+    onion = make_hashrings.stripOnion(oni)
+    data = os.listdir("/home/mge/%s" % onion)
+    for datum in data:
+      datum = datum.strip(".json")
+      dates = datum.split("-")
+      yr = dates[0]
+      mon = dates[1]
+      day = dates[2]
+      hr = dates[3]
+      suffix = "%s-%s-%s-%s" % (yr, mon, day, hr)    
+      hsdirs_json = open("/home/mge/%s/%s.json" % (onion, suffix), "r")
+      hsd = json.load(hsdirs_json)
+      hsdirs_json.close()
+      hsdirs = hsd['hsdirs']
+      for i, hsdir in hsdirs.items():
+        if i == '4' or i == '8':
+          continue
+        fprint = hsdir['fingerprint']
+        if suffix not in fingerprints:
+          fingerprints[fprint] = {'services':["%s/%s" % (onion, suffix)]}
+        else: 
+          fingerprints[fprint]['services'].append("%s/%s" % (onion, suffix)) 
+  fingerprints_json = open("/home/mge/fingerprints.json", "w")
+  json.dump(fingerprints, fingerprints_json)
+  fingerprints_json.close()
+  return fingerprints
 
+def findAges(fingerprints):
+  for fprint, info in fingerprints.items():
+    sleep_time = 1
+    failed = True
+    r = None 
+    while failed:
+      try:
+        if sleep_time > 512:
+          print("FAILED")
+          return 
+        time.sleep(sleep_time)
+        r = requests.get("https://onionoo.thecthulhu.com/details?fingerprint=%s" % fprint)
+        print("Successful %s after %d" % (fprint, sleep_time))
+        failed = False 
+      except requests.exceptions.ConnectionError:
+        sleep_time*=2
+    resp = r.json()
+    relays = resp['relays'][0]
+    first = relays['first_seen']
+    last = relays['last_seen']
+    first_time = datetime.strptime(first, "%Y-%m-%d %H:%M:%S")
+    last_time = datetime.strptime(last, "%Y-%m-%d %H:%M:%S")
+    services = info['services']
+    life = last_time - first_time
+    for service in services:
+      vals = service.split("/")
+      onion = vals[0]
+      suffix = vals[1]
+      onion_time = datetime.strptime(suffix, "%Y-%m-%d-%H")
+      birth_td = onion_time - first_time
+      death_td = last_time - onion_time
+      birth = birth_td.total_seconds()
+      death = death_td.total_seconds() 
+      hsdirs_json = open("/home/mge/%s/%s.json" % (onion, suffix), "r")
+      hsd = json.load(hsdirs_json)
+      hsdirs_json.close()
+      stats = hsd['stats']
+      if 'lifespan' in stats:
+        if (birth,death) in stats['lifespan']:
+          continue
+        else:
+          stats['lifespan'].append((birth,death))
+      else:
+        stats['lifespan'] = [(birth, death)] 
+      hsd['stats'] = stats
+      hsdirs_json = open("/home/mge/%s/%s.json" % (onion, suffix), "w")
+      json.dump(hsd, hsdirs_json)
+      hsdirs_json.close()
+       
 def run():
   georeader = geoip2.database.Reader("../geolite/GeoLite2-Country.mmdb")
   onions = open("descriptor_list.txt", "r")
@@ -147,8 +232,10 @@ def run():
       hsdirs_json = open("/home/mge/%s/%s.json" % (onion, suffix), "r")
       hsdirs = json.load(hsdirs_json)
       hsdirs_json.close()
-      if 'stats' in hsdirs:
+      if 'stats' in hsdirs and onion != "clsvtzwzdgzkjda7.onion":
         continue 
+      if onion == "clsvtzwzdgzkjda7.onion":
+        hsdirs = hsdirs['hsdirs']
       z_ones, z_fours = findDigestDistance(onion, suffix, digests, hsdirs)
       dns,countries = findReverseDNS(onion, suffix, hsdirs, georeader)
       common_nick, common_or, common_dir, common_exits, var_band = findSimilarTraits(hsdirs)
@@ -159,8 +246,18 @@ def run():
       json.dump(new_hsdirs, hsdirs_json)
       hsdirs_json.close()
   onions.close()
-  reader.close()
- 
+  georeader.close()
+
+def ages():
+  fingerprints = None
+  if not os.path.exists("/home/mge/fingerprints.json"):
+    fingerprints = getAllFingerprints()
+  else:
+    fprints = open("/home/mge/fingerprints.json", "r")
+    fingerprints = json.load(fprints)
+    fprints.close()
+  findAges(fingerprints)
+  
 def test():
   georeader = geoip2.database.Reader("../geolite/GeoLite2-Country.mmdb")
   onion = "duskgytldkxiuqc6.onion"
@@ -178,4 +275,4 @@ def test():
   hsdirs_json.close()
   georeader.close()
 
-run() 
+ages() 

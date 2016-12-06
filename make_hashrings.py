@@ -28,8 +28,10 @@ def openFiles():
       mon = dates[1]
       day = dates[2]
       hr = dates[3]
-      if os.path.exists("/home/mge/hashrings/%s-%s-%s-%s" % (yr, mon, day, hr)):
+      if os.path.exists("/home/mge/hashrings/%s-%s-%s-%s.json" % (yr, mon, day, hr)):
         continue
+      else:
+        print(folder)
       tarName = "/home/mge/old_consensus/consensuses-%s-%s.tar.xz" % (yr, mon)
       tarFileName = "consensuses-%s-%s/%s/%s-%s-%s-%s-00-00-consensus" % (yr, mon, day, yr, mon, day, hr)
       with tarfile.open(tarName, mode='r:xz') as tf:
